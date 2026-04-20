@@ -114,8 +114,26 @@ class Database:
             if hasattr(report_date, 'strftime'):
                 report_date = report_date.strftime('%Y-%m-%d')
             
+            # First, get report ID if it exists
             cursor.execute('''
-                INSERT OR REPLACE INTO reports 
+                SELECT id FROM reports 
+                WHERE intern_name = ? AND report_date = ?
+            ''', (data['intern_name'], report_date))
+            
+            report_result = cursor.fetchone()
+            if report_result:
+                report_id = report_result['id']
+            else:
+                report_id = None
+            
+            # Delete existing report and lessons
+            if report_id:
+                cursor.execute('DELETE FROM lessons WHERE report_id = ?', (report_id,))
+                cursor.execute('DELETE FROM reports WHERE id = ?', (report_id,))
+            
+            # Insert new report
+            cursor.execute('''
+                INSERT INTO reports 
                 (intern_name, report_date, arrival_time, departure_time, 
                  lesson_count, teachers, status, absence_reason)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -130,18 +148,14 @@ class Database:
                 data.get('absence_reason', '')
             ))
             
-            # Get the report ID
-            cursor.execute('''
-                SELECT id FROM reports 
-                WHERE intern_name = ? AND report_date = ?
-            ''', (data['intern_name'], report_date))
-            report_id = cursor.fetchone()[0]
+            # Get the new report ID
+            report_id = cursor.lastrowid
             
-            # Delete existing lessons for this report
-            cursor.execute('DELETE FROM lessons WHERE report_id = ?', (report_id,))
+            print(f"📝 Report ID: {report_id}, Lessons: {len(data.get('lessons', []))}")
             
             # Add individual lessons
             for lesson in data.get('lessons', []):
+                print(f"   ➕ Adding lesson: {lesson.get('teacher', '')} at {lesson.get('time', '')}")
                 cursor.execute('''
                     INSERT INTO lessons 
                     (report_id, intern_name, lesson_date, lesson_number, 
@@ -529,3 +543,7 @@ class Database:
         conn.close()
         
         return row['total'] or 0 if row else 0
+
+
+# Global database instance
+db = Database()

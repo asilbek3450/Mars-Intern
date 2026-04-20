@@ -168,40 +168,69 @@ async def admin_lessons_callback(query: CallbackQuery):
         await query.answer("❌ Siz admin emassiz!", show_alert=True)
         return
     
-    lessons = db.get_all_lessons(days=30)
+    # Get today's lessons first
+    today_lessons = db.get_lessons_by_date(date.today())
     
-    if not lessons:
-        await query.answer("📭 Darslar topilmadi")
-        return
-    
-    lessons_text = f"📚 KIRITILGAN DARSLAR (Oxirgi 30 kun)\n\n"
-    
-    current_date = None
-    current_intern = None
-    
-    for lesson in lessons:
-        # Group by date
-        if lesson['lesson_date'] != current_date:
-            current_date = lesson['lesson_date']
-            lessons_text += f"\n📅 {current_date}\n"
-            current_intern = None
+    if today_lessons:
+        # Show today's lessons
+        lessons_text = f"📚 BUGUNGI KIRITILGAN DARSLAR\n📅 {date.today().strftime('%d.%m.%Y')}\n\n"
         
-        # Group by intern
-        if lesson['intern_name'] != current_intern:
-            current_intern = lesson['intern_name']
-            lessons_text += f"   👤 {current_intern}\n"
+        current_intern = None
+        for lesson in today_lessons:
+            # Group by intern
+            if lesson['intern_name'] != current_intern:
+                current_intern = lesson['intern_name']
+                lessons_text += f"👤 {current_intern}\n"
+            
+            # Lesson details
+            lessons_text += f"   🔹 Dars #{lesson['lesson_number']}: {lesson['teacher_name']}\n"
+            if lesson['room']:
+                lessons_text += f"      📍 {lesson['room']} | ⏰ {lesson['lesson_time']}\n"
+            else:
+                lessons_text += f"      ⏰ {lesson['lesson_time']}\n"
         
-        # Lesson details
-        lessons_text += f"      🔹 Dars #{lesson['lesson_number']}: {lesson['teacher_name']}\n"
-        lessons_text += f"         📍 {lesson['room']} | ⏰ {lesson['lesson_time']}\n"
-    
-    # Limit message length
-    if len(lessons_text) > 4000:
-        lessons_text = lessons_text[:3950] + "\n\n... (Batafsil Excel ga qarang)"
-    
-    await query.message.edit_text(lessons_text)
-    await query.answer()
-    db.add_log(query.from_user.id, "lessons_viewed")
+        await query.message.edit_text(lessons_text)
+        await query.answer()
+        db.add_log(query.from_user.id, "lessons_viewed", f"Today: {len(today_lessons)} dars")
+    else:
+        # Try to get last 30 days
+        all_lessons = db.get_all_lessons(days=30)
+        
+        if not all_lessons:
+            await query.answer("📭 Darslar topilmadi (oxirgi 30 kun)")
+            return
+        
+        lessons_text = f"📚 KIRITILGAN DARSLAR (Oxirgi 30 kun)\n\n"
+        
+        current_date = None
+        current_intern = None
+        
+        for lesson in all_lessons:
+            # Group by date
+            if lesson['lesson_date'] != current_date:
+                current_date = lesson['lesson_date']
+                lessons_text += f"\n📅 {current_date}\n"
+                current_intern = None
+            
+            # Group by intern
+            if lesson['intern_name'] != current_intern:
+                current_intern = lesson['intern_name']
+                lessons_text += f"   👤 {current_intern}\n"
+            
+            # Lesson details
+            lessons_text += f"      🔹 Dars #{lesson['lesson_number']}: {lesson['teacher_name']}\n"
+            if lesson['room']:
+                lessons_text += f"         📍 {lesson['room']} | ⏰ {lesson['lesson_time']}\n"
+            else:
+                lessons_text += f"         ⏰ {lesson['lesson_time']}\n"
+        
+        # Limit message length
+        if len(lessons_text) > 4000:
+            lessons_text = lessons_text[:3950] + "\n\n... (Batafsil Excel ga qarang)"
+        
+        await query.message.edit_text(lessons_text)
+        await query.answer()
+        db.add_log(query.from_user.id, "lessons_viewed", f"Total: {len(all_lessons)} dars")
 
 
 @admin_router.callback_query(F.data == "admin_work_stats")
@@ -236,16 +265,33 @@ async def admin_work_stats_callback(query: CallbackQuery):
         work_text += f"👤 {intern_name}\n"
         
         for session in sessions:
-            if session['status'] == 'completed' and session['duration_minutes']:
+            if session['status'] == 'completed' and session.get('duration_minutes'):
                 hours = session['duration_minutes'] // 60
                 minutes = session['duration_minutes'] % 60
-                start_time = session['start_time'].split('T')[1][:5] if 'T' in session['start_time'] else session['start_time'][:5]
-                end_time = session['end_time'].split('T')[1][:5] if session.get('end_time') and 'T' in session['end_time'] else (session.get('end_time', '')[:5] if session.get('end_time') else '')
+                
+                # Extract time from timestamp
+                start = session['start_time']
+                end = session.get('end_time', '')
+                
+                # Handle both datetime strings and regular time strings
+                if isinstance(start, str):
+                    start_time = start.split('T')[-1][:5] if 'T' in start else start[:5]
+                else:
+                    start_time = str(start)[:5]
+                
+                if isinstance(end, str):
+                    end_time = end.split('T')[-1][:5] if 'T' in end else end[:5]
+                else:
+                    end_time = str(end)[:5] if end else ''
                 
                 work_text += f"   🕐 {start_time} - {end_time} | {hours}h {minutes}m\n"
                 total_minutes += session['duration_minutes']
             elif session['status'] == 'active':
-                start_time = session['start_time'].split('T')[1][:5] if 'T' in session['start_time'] else session['start_time'][:5]
+                start = session['start_time']
+                if isinstance(start, str):
+                    start_time = start.split('T')[-1][:5] if 'T' in start else start[:5]
+                else:
+                    start_time = str(start)[:5]
                 work_text += f"   🟢 {start_time} - ... (Davom etayapti)\n"
         
         if total_minutes > 0:
