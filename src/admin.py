@@ -24,6 +24,13 @@ admin_router = Router()
 # Can be set via /admin_add command
 
 
+def get_back_keyboard() -> InlineKeyboardMarkup:
+    """Get keyboard with back button"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_back")]
+    ])
+
+
 @admin_router.message(F.text == "/admin")
 async def admin_menu(message: Message):
     """Show admin menu with inline buttons"""
@@ -124,7 +131,7 @@ async def admin_stats_callback(query: CallbackQuery):
 Kelish foizi: {(summary['present'] / len(INTERNS) * 100):.1f}%
 """
     
-    await query.message.edit_text(stats_text)
+    await query.message.edit_text(stats_text, reply_markup=get_back_keyboard())
     await query.answer()
     db.add_log(query.from_user.id, "stats_viewed", f"Date: {today}")
 
@@ -156,7 +163,7 @@ async def admin_reports_callback(query: CallbackQuery):
             reports_text += f"  Sabab: {report['absence_reason']}\n"
         reports_text += "\n"
     
-    await query.message.edit_text(reports_text)
+    await query.message.edit_text(reports_text, reply_markup=get_back_keyboard())
     await query.answer()
     db.add_log(query.from_user.id, "reports_viewed", f"Date: {today}")
 
@@ -189,7 +196,7 @@ async def admin_lessons_callback(query: CallbackQuery):
             else:
                 lessons_text += f"      ⏰ {lesson['lesson_time']}\n"
         
-        await query.message.edit_text(lessons_text)
+        await query.message.edit_text(lessons_text, reply_markup=get_back_keyboard())
         await query.answer()
         db.add_log(query.from_user.id, "lessons_viewed", f"Today: {len(today_lessons)} dars")
     else:
@@ -228,7 +235,7 @@ async def admin_lessons_callback(query: CallbackQuery):
         if len(lessons_text) > 4000:
             lessons_text = lessons_text[:3950] + "\n\n... (Batafsil Excel ga qarang)"
         
-        await query.message.edit_text(lessons_text)
+        await query.message.edit_text(lessons_text, reply_markup=get_back_keyboard())
         await query.answer()
         db.add_log(query.from_user.id, "lessons_viewed", f"Total: {len(all_lessons)} dars")
 
@@ -304,7 +311,7 @@ async def admin_work_stats_callback(query: CallbackQuery):
     if len(work_text) > 4000:
         work_text = work_text[:3950] + "\n\n... (Batafsil uchun ro'yxatni qarang)"
     
-    await query.message.edit_text(work_text)
+    await query.message.edit_text(work_text, reply_markup=get_back_keyboard())
     await query.answer()
     db.add_log(query.from_user.id, "work_stats_viewed", f"Date: {today}")
 
@@ -320,7 +327,7 @@ async def admin_interns_callback(query: CallbackQuery):
     for i, intern in enumerate(INTERNS, 1):
         interns_text += f"{i}. {intern}\n"
     
-    await query.message.edit_text(interns_text)
+    await query.message.edit_text(interns_text, reply_markup=get_back_keyboard())
     await query.answer()
     db.add_log(query.from_user.id, "interns_list_viewed")
 
@@ -385,7 +392,7 @@ async def admin_logs_callback(query: CallbackQuery):
             logs_text += f"   ▪ {log['details']}\n"
         logs_text += f"   ⏰ {log['created_at']}\n\n"
     
-    await query.message.edit_text(logs_text)
+    await query.message.edit_text(logs_text, reply_markup=get_back_keyboard())
     await query.answer()
 
 
@@ -519,7 +526,7 @@ MISOL:
 /admin_add 123456789
 """
     
-    await query.message.edit_text(help_text)
+    await query.message.edit_text(help_text, reply_markup=get_back_keyboard())
     await query.answer()
 async def admin_interns_list(message: Message):
     """Show all interns list"""
@@ -711,3 +718,56 @@ MISOL:
 """
     
     await message.answer(help_text)
+
+
+@admin_router.callback_query(F.data == "admin_back")
+async def admin_back_callback(query: CallbackQuery):
+    """Go back to admin menu"""
+    if not db.is_admin(query.from_user.id):
+        await query.answer("❌ Siz admin emassiz!", show_alert=True)
+        return
+    
+    # Create inline keyboard with buttons
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"),
+            InlineKeyboardButton(text="📋 Hisobotlar", callback_data="admin_reports")
+        ],
+        [
+            InlineKeyboardButton(text="📚 Dars ro'yxati", callback_data="admin_lessons"),
+            InlineKeyboardButton(text="👥 Talabalar", callback_data="admin_interns")
+        ],
+        [
+            InlineKeyboardButton(text="⏱️ Ish vaqti", callback_data="admin_work_stats"),
+            InlineKeyboardButton(text="📥 Excel export", callback_data="admin_excel")
+        ],
+        [
+            InlineKeyboardButton(text="📜 Jurnali", callback_data="admin_logs"),
+            InlineKeyboardButton(text="🔍 Qidirish", callback_data="admin_search")
+        ],
+        [
+            InlineKeyboardButton(text="🗑️ O'chirish", callback_data="admin_delete"),
+            InlineKeyboardButton(text="👨‍💼 Admin qo'shish", callback_data="admin_add")
+        ],
+        [
+            InlineKeyboardButton(text="ℹ️ Yordam", callback_data="admin_help")
+        ]
+    ])
+    
+    menu_text = """
+🔐 ADMIN PANEL
+
+Siz quyidagi amalarni bajarishingiz mumkin:
+1️⃣ 📊 Statistika - Bugungi statistikani ko'rish
+2️⃣ 📋 Hisobotlar - Bugungi hisobotlarni ko'rish
+3️⃣ 📚 Dars ro'yxati - Interns kiritgan darslarni ko'rish
+4️⃣ 👥 Talabalar - Barcha talabalari ko'rish
+5️⃣ ⏱️ Ish vaqti - Har bir intern nechi soat marsda bo'gani
+6️⃣ 📥 Excel export - Darslarni Excel ga chiqarish
+7️⃣ 📜 Jurnali - Faoliyat jurnalini ko'rish
+8️⃣ 🔍 Qidirish - Talabani qidirish
+9️⃣ 🗑️ O'chirish - Hisobotni o'chirish
+"""
+    
+    await query.message.edit_text(menu_text, reply_markup=keyboard)
+    await query.answer()

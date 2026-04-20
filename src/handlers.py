@@ -44,12 +44,9 @@ async def cmd_start(message: Message, state: FSMContext):
 @router.message(F.text == "🟢 Ish boshladim")
 async def start_work_session(message: Message, state: FSMContext):
     """Handle work session start"""
-    interns_list = ", ".join(INTERNS)
     await message.answer(
-        f"👤 Qaysi intern ish boshlamoqda?\n\n"
-        f"Mavjud interns:\n{interns_list}\n\n"
-        f"Ismini yozing:",
-        reply_markup=get_cancel_keyboard()
+        "👤 Qaysi intern ish boshlamoqda?",
+        reply_markup=get_intern_selection_keyboard()
     )
     await state.set_state(WorkSession.selecting_intern_start)
 
@@ -57,12 +54,9 @@ async def start_work_session(message: Message, state: FSMContext):
 @router.message(F.text == "🔴 Ish tugatim")
 async def end_work_session_request(message: Message, state: FSMContext):
     """Handle work session end request"""
-    interns_list = ", ".join(INTERNS)
     await message.answer(
-        f"👤 Qaysi intern ish tugatmoqda?\n\n"
-        f"Mavjud interns:\n{interns_list}\n\n"
-        f"Ismini yozing:",
-        reply_markup=get_cancel_keyboard()
+        "👤 Qaysi intern ish tugatmoqda?",
+        reply_markup=get_intern_selection_keyboard()
     )
     await state.set_state(WorkSession.selecting_intern_end)
 
@@ -85,10 +79,25 @@ async def handle_work_intern_start(message: Message, state: FSMContext):
     else:
         # Start the session
         if db.start_work_session(intern_name):
+            # Get today's work sessions to calculate total hours
+            today_sessions = db.get_work_sessions_by_date(date.today())
+            total_minutes = 0
+            
+            for session in today_sessions:
+                if session['intern_name'] == intern_name and session['status'] == 'completed' and session.get('duration_minutes'):
+                    total_minutes += session['duration_minutes']
+            
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            
+            work_info = ""
+            if total_minutes > 0:
+                work_info = f"\n📊 Bugun allaqachon: {hours}h {minutes}m"
+            
             await message.answer(
                 f"🟢 Ish boshlandi!\n\n"
                 f"👤 {intern_name}\n"
-                f"⏰ Vaqt: {datetime.now().strftime('%H:%M:%S')}\n\n"
+                f"⏰ Vaqt: {datetime.now().strftime('%H:%M:%S')}{work_info}\n\n"
                 f"Ish tugatish uchun '🔴 Ish tugatim' ni bosing.",
                 reply_markup=get_main_keyboard()
             )
@@ -115,15 +124,10 @@ async def handle_work_intern_end(message: Message, state: FSMContext):
             start_time = datetime.fromisoformat(active_session['start_time'])
             end_time = datetime.now()
             duration = int((end_time - start_time).total_seconds() / 60)
-            hours = duration // 60
-            minutes = duration % 60
             
             await message.answer(
                 f"✅ Ish tugatildi!\n\n"
-                f"👤 {intern_name}\n"
-                f"⏱️ Ish vaqti: {hours}h {minutes}m ({duration} min)\n"
-                f"🕐 Boshlanish: {start_time.strftime('%H:%M:%S')}\n"
-                f"🕐 Tugash: {end_time.strftime('%H:%M:%S')}",
+                f"👤 {intern_name}\n",
                 reply_markup=get_main_keyboard()
             )
             db.add_log(message.from_user.id, "work_session_ended", f"{intern_name}: {duration}min")
