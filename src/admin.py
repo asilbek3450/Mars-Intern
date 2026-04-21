@@ -847,6 +847,12 @@ MISOL:
     
     await query.message.edit_text(help_text, reply_markup=get_back_keyboard())
     await query.answer()
+
+
+@admin_router.message(F.text == "/interns_list")
+@admin_router.message(F.text == "👥 Talabalar")
+@admin_router.message(F.text == "Internlar ro'yxati")
+@admin_router.message(F.text == "internlar ro'yxati")
 async def admin_interns_list(message: Message):
     """Show all interns list"""
     if not db.is_admin(message.from_user.id):
