@@ -11,18 +11,20 @@ load_dotenv()
 # Bot token
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
-# Database file path
+# Base paths
 BASE_DIR = Path(__file__).parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
 DATA_DIR.mkdir(exist_ok=True)
 
 EXCEL_FILE = DATA_DIR / "interns_reports.xlsx"
+DATABASE_FILE = DATA_DIR / "mars_intern.db"
 
 # Timezone
 TIMEZONE = "Asia/Tashkent"
 
 # Admin settings
-ADMIN_ID = 7782143104  # Set your admin ID for notifications
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
+ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW else None
 
 # Button labels (in Uzbek)
 BTN_DARS_KIRITISH = "📚 Dars kiritish"

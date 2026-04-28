@@ -5,10 +5,8 @@ import sqlite3
 from pathlib import Path
 from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
-from config import BASE_DIR
+from config import DATABASE_FILE
 from interns import INTERNS
-
-DATABASE_FILE = BASE_DIR / "data" / "mars_intern.db"
 
 
 class Database:
